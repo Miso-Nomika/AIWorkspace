@@ -2,6 +2,7 @@
 
 import { useState, type ComponentType } from "react";
 import { whenOk, type Block } from "@/lib/home-widget-core";
+import { ChartBlock } from "./ChartBlock";
 import { MacroBlock } from "./MacroBlock";
 import { BarBlock, ChecklistBlock, ClockBlock, LineBlock, StatBlock, TableBlock, TextBlock, type LeafProps } from "./Leaves";
 
@@ -15,6 +16,7 @@ export const BLOCK_COMPONENTS: Record<string, ComponentType<LeafProps>> = {
   table: TableBlock,
   line: LineBlock,
   bar: BarBlock,
+  chart: ChartBlock,
   checklist: ChecklistBlock,
   clock: ClockBlock,
   macro: MacroBlock,

@@ -16,6 +16,8 @@
   /* 홈 그래프 계열 색 */
   --series-inflation: #ea580c;
   --series-rate: #4f46e5;
+  --series-green: #16a34a;
+  --series-pink: #db2777;
   /* 코드 구문 강조 색 (코드 뷰어) */
   --hl-keyword: #cf222e;
   --hl-string: #0a3069;
@@ -38,6 +40,8 @@
   --accent-soft: #1e1b4b;
   --series-inflation: #fb923c;
   --series-rate: #818cf8;
+  --series-green: #4ade80;
+  --series-pink: #f472b6;
   --hl-keyword: #ff7b72;
   --hl-string: #a5d6ff;
   --hl-number: #79c0ff;

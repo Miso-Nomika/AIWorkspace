@@ -8,6 +8,8 @@ export const MAX_BLOCKS = 50;
 export const MAX_TEXT = 2000;
 export const MAX_ROWS = 200;
 export const MAX_POINTS = 1000;
+/** CSV 자료로 읽는 줄 수 (월별 20년치가 들어가도록 MAX_POINTS와 같게) */
+export const MAX_CSV_ROWS = MAX_POINTS;
 export const SIZES = [1, 2, 3] as const;
 export type Size = (typeof SIZES)[number];
 
@@ -267,7 +269,7 @@ export function thresholdColor(value: unknown, thresholds: unknown): Color | und
 
 // ── 변환 (소스로 받은 자료를 다듬는 선언형 단계, 소스 연결은 T07) ──
 
-export const TRANSFORM_OPS = ["pick", "map", "filter", "sort", "limit", "group", "agg"] as const;
+export const TRANSFORM_OPS = ["pick", "map", "filter", "sort", "limit", "group", "agg", "yoy"] as const;
 
 /** 한 단계 변환. 배열에 대해서만 동작하고 모르는 입력은 그대로 돌려준다 */
 export function runTransform(value: unknown, step: unknown): unknown {
@@ -293,7 +295,36 @@ export function runTransform(value: unknown, step: unknown): unknown {
       });
     }
     case "limit":
-      return Array.isArray(value) ? value.slice(0, Math.max(0, Math.min(MAX_ROWS, Number(step.n) || 0))) : value;
+      return Array.isArray(value) ? value.slice(0, Math.max(0, Math.min(MAX_POINTS, Number(step.n) || 0))) : value;
+    case "yoy": {
+      // 월 단위 자료의 전년 같은 달 대비 상승률(%): 각 행에 as(기본 'yoy') 값을 붙이고, 12개월 전 값이 없는 행은 뺀다
+      if (!Array.isArray(value) || typeof step.path !== "string" || typeof step.date !== "string") return value;
+      const num = (v: unknown) => (typeof v === "string" && v.trim() === "" ? Number.NaN : Number(v));
+      const monthOf = (row: unknown): [number, string] | null => {
+        const d = getPath(row, step.date as string);
+        const m = typeof d === "string" ? /^(\d{4})-(\d{2})/.exec(d) : null;
+        return m ? [Number(m[1]), m[2]] : null;
+      };
+      const byMonth = new Map<string, number>();
+      for (const row of value) {
+        const m = monthOf(row);
+        const n = num(getPath(row, step.path));
+        if (m && Number.isFinite(n)) byMonth.set(`${m[0]}-${m[1]}`, n);
+      }
+      const as = typeof step.as === "string" && step.as ? step.as : "yoy";
+      const digits = Number.isInteger(step.digits) && (step.digits as number) >= 0 && (step.digits as number) <= 4 ? (step.digits as number) : 1;
+      const scale = 10 ** digits;
+      const out: unknown[] = [];
+      for (const row of value) {
+        const m = monthOf(row);
+        const n = num(getPath(row, step.path));
+        if (!m || !Number.isFinite(n)) continue;
+        const before = byMonth.get(`${m[0] - 1}-${m[1]}`);
+        if (before === undefined || before === 0) continue;
+        out.push({ ...(isObject(row) ? row : {}), [as]: Math.round((n / before - 1) * 100 * scale) / scale });
+      }
+      return out;
+    }
     case "group": {
       if (!Array.isArray(value) || typeof step.path !== "string") return value;
       const groups = new Map<string, unknown[]>();
@@ -399,6 +430,21 @@ export const BLOCK_SPECS: Record<string, BlockSpec> = {
     promptDoc: "bar — 막대그래프. line과 같은 points",
     example: { type: "bar", points: [{ x: "월", y: 3 }, { x: "화", y: 5 }] },
   },
+  chart: {
+    keys: ["series", "gap", "ranges", "range"],
+    validate: (b, w, c) => checkChart(b, w, c),
+    promptDoc:
+      "chart — 여러 계열을 한 그래프에 그리는 차트(선·막대 섞기, 왼쪽·오른쪽 세로축, 날짜 가로축, 마우스를 올리면 값, 기간 버튼). {series:[{label, points 또는 x와 y, color?:'orange'|'indigo'|'green'|'pink', kind?:'line'|'bar', axis?:'left'|'right', unit?:'%', digits?:0~4}] 1~4개, gap?:'skip'|'interpolate'(값이 빈 달에서 선을 끊음|앞뒤 실제 값 사이를 직선으로 계산해 채우고 점선으로 그리며 마우스를 올리면 '(보간)'과 함께 그 값이 보임, 선에만 적용, 맨 앞·뒤 빈 칸은 채우지 않음), ranges?:[12,60,120](기간 버튼, 개월 수, 날짜 가로축일 때만), range?:'all'|개월 수(처음 선택)}. points는 숫자 또는 {x,y} 배열, x·y는 각각 배열 또는 '{{경로}}'(x는 'YYYY-MM-DD' 날짜 글이면 날짜축). 단위가 다른 계열은 axis로 왼쪽·오른쪽에 나눕니다. 계열의 x가 서로 같은 날짜여야 같은 위치에 겹칩니다.",
+    example: {
+      type: "chart",
+      gap: "skip",
+      ranges: [60, 120],
+      series: [
+        { label: "물가 상승률", x: "{{cpi[*].observation_date}}", y: "{{cpi[*].yoy}}", unit: "%", color: "orange" },
+        { label: "기준금리", x: "{{ff[*].observation_date}}", y: "{{ff[*].FEDFUNDS}}", unit: "%", color: "indigo" },
+      ],
+    },
+  },
   checklist: {
     keys: ["items"],
     validate: (b, w, c) => {
@@ -464,6 +510,40 @@ function checkPoints(b: Record<string, unknown>, w: string, c: Ctx) {
     c.errors.push(`${w}: points는 숫자 또는 {x,y} ${MAX_POINTS}개 이하 배열이거나 {{경로}}여야 합니다`);
   }
   if (b.label !== undefined && !str(b.label, 80)) c.errors.push(`${w}: label은 80자 이하여야 합니다`);
+}
+
+export const CHART_COLORS = ["orange", "indigo", "green", "pink"] as const;
+export type ChartColor = (typeof CHART_COLORS)[number];
+const SERIES_KEYS = ["label", "color", "kind", "axis", "unit", "digits", "points", "x", "y"];
+const isIntIn = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
+
+function checkChart(b: Record<string, unknown>, w: string, c: Ctx) {
+  const series = b.series;
+  if (!Array.isArray(series) || series.length < 1 || series.length > 4) return void c.errors.push(`${w}: series는 계열 1~4개 배열이어야 합니다`);
+  series.forEach((s, i) => {
+    const sw = `${w}.series[${i}]`;
+    if (!isObject(s)) return void c.errors.push(`${sw}: 계열은 객체여야 합니다`);
+    const unknownKeys = Object.keys(s).filter((k) => !SERIES_KEYS.includes(k));
+    if (unknownKeys.length) c.errors.push(`${sw}: 모르는 키 ${unknownKeys.map((k) => `'${k}'`).join(", ")}`);
+    if (!str(s.label, 80) || !(s.label as string).trim()) c.errors.push(`${sw}: label은 80자 이하의 글이어야 합니다`);
+    if (s.color !== undefined && !CHART_COLORS.includes(s.color as ChartColor)) c.errors.push(`${sw}: color는 ${CHART_COLORS.join("·")} 중 하나입니다`);
+    if (s.kind !== undefined && s.kind !== "line" && s.kind !== "bar") c.errors.push(`${sw}: kind는 line·bar 중 하나입니다`);
+    if (s.axis !== undefined && s.axis !== "left" && s.axis !== "right") c.errors.push(`${sw}: axis는 left·right 중 하나입니다`);
+    if (s.unit !== undefined && !str(s.unit, 12)) c.errors.push(`${sw}: unit은 12자 이하입니다`);
+    if (s.digits !== undefined && !isIntIn(s.digits, 0, 4)) c.errors.push(`${sw}: digits는 0~4입니다`);
+    const list = (v: unknown, item: (x: unknown) => boolean) => (typeof v === "string" ? str(v) : Array.isArray(v) && v.length <= MAX_POINTS && v.every(item));
+    if (s.points !== undefined) {
+      if (s.x !== undefined || s.y !== undefined) c.errors.push(`${sw}: points와 x·y는 함께 쓸 수 없습니다`);
+      else if (!list(s.points, (x) => typeof x === "number" || (isObject(x) && typeof x.y === "number" && (x.x === undefined || typeof x.x === "string" || typeof x.x === "number")))) c.errors.push(`${sw}: points는 숫자 또는 {x,y} ${MAX_POINTS}개 이하 배열이거나 {{경로}}여야 합니다`);
+    } else if (s.y === undefined) c.errors.push(`${sw}: points 또는 y가 필요합니다`);
+    else {
+      if (!list(s.y, (x) => x === null || typeof x === "number" || typeof x === "string")) c.errors.push(`${sw}: y는 값 ${MAX_POINTS}개 이하 배열이거나 {{경로}}여야 합니다`);
+      if (s.x !== undefined && !list(s.x, (x) => typeof x === "number" || typeof x === "string")) c.errors.push(`${sw}: x는 글·숫자 ${MAX_POINTS}개 이하 배열이거나 {{경로}}여야 합니다`);
+    }
+  });
+  if (b.gap !== undefined && b.gap !== "skip" && b.gap !== "interpolate") c.errors.push(`${w}: gap은 skip·interpolate 중 하나입니다`);
+  if (b.ranges !== undefined && (!Array.isArray(b.ranges) || b.ranges.length > 6 || !b.ranges.every((m) => isIntIn(m, 1, 600)))) c.errors.push(`${w}: ranges는 1~600 개월 수 6개 이하 배열입니다`);
+  if (b.range !== undefined && b.range !== "all" && !isIntIn(b.range, 1, 600)) c.errors.push(`${w}: range는 'all' 또는 개월 수(1~600)입니다`);
 }
 
 function checkFormat(format: unknown, where: string, ctx: Ctx) {
@@ -586,7 +666,7 @@ export function blockPromptDocs(): string {
 
 // ── 외부 자료 해석 (받은 글 → 값) ──
 
-/** CSV(쉼표, 큰따옴표 묶음 지원) → 첫 줄을 이름으로 쓴 객체 배열. 줄 수는 MAX_ROWS까지 */
+/** CSV(쉼표, 큰따옴표 묶음 지원) → 첫 줄을 이름으로 쓴 객체 배열. 줄 수는 MAX_CSV_ROWS까지 */
 export function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -612,7 +692,7 @@ export function parseCsv(text: string): Record<string, string>[] {
       cell = "";
       if (row.some((c) => c !== "")) rows.push(row);
       row = [];
-      if (rows.length > MAX_ROWS) break;
+      if (rows.length > MAX_CSV_ROWS) break;
     } else cell += ch;
   }
   if (cell !== "" || row.length) {
@@ -621,7 +701,7 @@ export function parseCsv(text: string): Record<string, string>[] {
   }
   const [head, ...body] = rows;
   if (!head) return [];
-  return body.slice(0, MAX_ROWS).map((r) => Object.fromEntries(head.map((name, i) => [name.trim(), r[i] ?? ""])));
+  return body.slice(0, MAX_CSV_ROWS).map((r) => Object.fromEntries(head.map((name, i) => [name.trim(), r[i] ?? ""])));
 }
 
 /** DOM과 같은 모양만 쓰는 최소 XML 요소 (브라우저의 Element도, 테스트용 가짜도 맞는다) */

@@ -25,11 +25,13 @@ export function generateHomeWidget(request: string, editing?: unknown): WidgetGe
   const prompt = editing === undefined ? buildCreatePrompt(request) : buildEditPrompt(editing, request);
   const result = generateWidget(async (text, session) => {
     if (cancelled) return { text: "", isError: false, cancelled: true };
-    const run = runChat({ provider: "claude", model: WIDGET_MODEL, system, prompt: text, web: false, session }, () => {});
+    const run = runChat({ provider: "claude", model: WIDGET_MODEL, system, prompt: text, web: true, session }, () => {});
     cancelCurrent = run.cancel;
     const r = await run.result;
     return { text: r.text, sessionId: r.sessionId, isError: r.isError, error: r.error, cancelled: r.cancelled };
-  }, prompt).catch((error): GenResult => ({ ok: false, error: (error instanceof Error ? error.message : String(error)) === "CLI_NOT_FOUND" ? missingCliGuide("claude") : errorMessage(error) }));
+  }, prompt)
+    .then((r): GenResult => (r.ok && editing !== undefined && JSON.stringify(r.def) === JSON.stringify(editing) ? { ok: false, error: "요청을 반영하지 못했습니다 (위젯이 그대로입니다). 요청을 더 구체적으로 적어 다시 시도해 주세요" } : r))
+    .catch((error): GenResult => ({ ok: false, error: (error instanceof Error ? error.message : String(error)) === "CLI_NOT_FOUND" ? missingCliGuide("claude") : errorMessage(error) }));
   return {
     result,
     cancel: () => {

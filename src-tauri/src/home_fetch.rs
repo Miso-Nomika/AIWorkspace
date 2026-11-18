@@ -19,6 +19,8 @@ use crate::data;
 
 const MAX_BYTES: usize = 1_048_576;
 const TIMEOUT: Duration = Duration::from_secs(10);
+/// 일부 서버(FRED의 Akamai 등)는 이름만 있는 User-Agent("AIWorkspace")를 받으면 응답하지 않아, 버전과 저장소 주소를 붙인다
+const USER_AGENT: &str = concat!("AIWorkspace/", env!("CARGO_PKG_VERSION"), " (+https://github.com/Miso-Nomika/AIWorkspace)");
 const CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 const HOUR: Duration = Duration::from_secs(3600);
 const HOURLY_LIMIT: usize = 60;
@@ -177,7 +179,7 @@ pub(crate) async fn fetch_limited(url: &Url, resolved: Option<SocketAddr>, max_b
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         let _ = rustls::crypto::ring::default_provider().install_default();
     }
-    let mut builder = reqwest::Client::builder().timeout(TIMEOUT).redirect(reqwest::redirect::Policy::none()).user_agent("AIWorkspace");
+    let mut builder = reqwest::Client::builder().timeout(TIMEOUT).redirect(reqwest::redirect::Policy::none()).user_agent(USER_AGENT);
     if let (Some(addr), Some(host)) = (resolved, url.host_str()) {
         builder = builder.resolve(host, addr);
     }

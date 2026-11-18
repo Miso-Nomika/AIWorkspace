@@ -75,12 +75,18 @@ export function TableBlock({ block, data }: LeafProps) {
   );
 }
 
+/** 숫자로 읽히는 글(CSV 값 "324.8" 등)은 숫자로, 빈 글·숫자가 아닌 값은 NaN으로 */
+function asNumber(v: unknown): number {
+  if (typeof v === "number") return v;
+  return typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+}
+
 function toPoints(raw: unknown): { x?: string | number; y: number }[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .slice(0, MAX_POINTS)
-    .map((p) => (typeof p === "number" ? { y: p } : (p as { x?: string | number; y: number })))
-    .filter((p) => p && typeof p.y === "number" && Number.isFinite(p.y));
+    .map((p) => (p !== null && typeof p === "object" ? { ...(p as { x?: string | number }), y: asNumber((p as { y?: unknown }).y) } : { y: asNumber(p) }))
+    .filter((p) => Number.isFinite(p.y));
 }
 
 const W = 300;

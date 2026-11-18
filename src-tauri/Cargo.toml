@@ -1,6 +1,6 @@
 [package]
 name = "aiworkspace"
-version = "0.21.1"
+version = "0.21.2"
 description = "AIWorkspace desktop app"
 authors = ["cudje"]
 license = ""
