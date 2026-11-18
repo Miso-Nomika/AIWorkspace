@@ -1,7 +1,7 @@
 "use client";
 
 import type { PointerEvent } from "react";
-import { ArrowLeft, ArrowRight, Columns2, Columns3, Eye, EyeOff, GripVertical, RectangleHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, Columns2, Columns3, Eye, EyeOff, GripVertical, LayoutPanelLeft, RectangleHorizontal } from "lucide-react";
 import type { Size } from "@/lib/home-widget-core";
 
 interface Props {
@@ -22,10 +22,11 @@ const BTN = "inline-flex size-7 items-center justify-center rounded-md text-mute
 const SIZES: { size: Size; label: string; Icon: typeof Columns3 }[] = [
   { size: 1, label: "작게 (3분의 1 폭)", Icon: Columns3 },
   { size: 2, label: "중간 (절반 폭)", Icon: Columns2 },
+  { size: 4, label: "넓게 (3분의 2 폭)", Icon: LayoutPanelLeft },
   { size: 3, label: "크게 (전체 폭)", Icon: RectangleHorizontal },
 ];
 
-/** 편집 모드에서 위젯 카드 위에 붙는 줄: 끌어서 옮기기 · 앞으로·뒤로 · 크기 3단계 · 숨기기/보이기 */
+/** 편집 모드에서 위젯 카드 위에 붙는 줄: 끌어서 옮기기 · 앞으로·뒤로 · 크기 4단계 · 숨기기/보이기 */
 export function HomeEditBar({ id, size, hidden, onShift, onSize, onHidden, onDragStart, onDragMove, onDragEnd, onDragCancel }: Props) {
   return (
     <div className="mb-1 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-surface px-1 py-0.5" data-testid={`home-edit-${id}`}>

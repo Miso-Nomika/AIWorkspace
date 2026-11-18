@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "AIWorkspace",
   "mainBinaryName": "AIWorkspace",
-  "version": "0.21.2",
+  "version": "0.21.4",
   "identifier": "com.aiworkspace.desktop",
   "build": {
     "frontendDist": "../out",

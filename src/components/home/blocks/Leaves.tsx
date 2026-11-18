@@ -63,7 +63,7 @@ export function TableBlock({ block, data }: LeafProps) {
             <tr key={i} className="border-b border-border last:border-0">
               {columns.map((c) => (
                 <td key={c.key} className="px-2 py-1 tabular-nums">
-                  {formatValue(getPath(row, c.key), c.format ?? asFormat(block))}
+                  {formatValue(resolveValue(getPath(row, c.key), data), c.format ?? asFormat(block))}
                 </td>
               ))}
             </tr>

@@ -10,7 +10,8 @@ export const MAX_ROWS = 200;
 export const MAX_POINTS = 1000;
 /** CSV 자료로 읽는 줄 수 (월별 20년치가 들어가도록 MAX_POINTS와 같게) */
 export const MAX_CSV_ROWS = MAX_POINTS;
-export const SIZES = [1, 2, 3] as const;
+/** 1 = 3분의 1, 2 = 절반, 3 = 전체 폭, 4 = 3분의 2 (3은 이미 저장된 값이라 그대로 두고 새 크기를 4로 더했다) */
+export const SIZES = [1, 2, 3, 4] as const;
 export type Size = (typeof SIZES)[number];
 
 export type Block = { type: string; [key: string]: unknown };
@@ -192,6 +193,8 @@ export interface Format {
   digits?: number;
   unit?: string;
   currency?: string;
+  /** true면 0보다 큰 숫자 앞에 +를 붙인다 (상승률처럼 방향이 중요한 값) */
+  signed?: boolean;
 }
 
 export function formatValue(value: unknown, format?: Format): string {
@@ -199,17 +202,18 @@ export function formatValue(value: unknown, format?: Format): string {
   if (!format) return typeof value === "object" ? "-" : String(value);
   const n = typeof value === "number" ? value : Number(value);
   const digits = format.digits ?? (format.type === "percent" ? 1 : 2);
+  const plus = format.signed === true && Number.isFinite(n) && n > 0 ? "+" : "";
   switch (format.type) {
     case "number":
-      return Number.isFinite(n) ? n.toLocaleString("ko-KR", { maximumFractionDigits: digits }) : String(value);
+      return Number.isFinite(n) ? `${plus}${n.toLocaleString("ko-KR", { maximumFractionDigits: digits })}` : String(value);
     case "percent":
-      return Number.isFinite(n) ? `${n.toLocaleString("ko-KR", { maximumFractionDigits: digits })}%` : String(value);
+      return Number.isFinite(n) ? `${plus}${n.toLocaleString("ko-KR", { maximumFractionDigits: digits })}%` : String(value);
     case "currency":
       return Number.isFinite(n)
         ? n.toLocaleString("ko-KR", { style: "currency", currency: format.currency ?? "KRW", maximumFractionDigits: format.digits ?? 0 })
         : String(value);
     case "unit":
-      return Number.isFinite(n) ? `${n.toLocaleString("ko-KR", { maximumFractionDigits: digits })}${format.unit ?? ""}` : String(value);
+      return Number.isFinite(n) ? `${plus}${n.toLocaleString("ko-KR", { maximumFractionDigits: digits })}${format.unit ?? ""}` : String(value);
     case "date": {
       const d = new Date(typeof value === "number" ? value : String(value));
       return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
@@ -269,7 +273,7 @@ export function thresholdColor(value: unknown, thresholds: unknown): Color | und
 
 // ── 변환 (소스로 받은 자료를 다듬는 선언형 단계, 소스 연결은 T07) ──
 
-export const TRANSFORM_OPS = ["pick", "map", "filter", "sort", "limit", "group", "agg", "yoy"] as const;
+export const TRANSFORM_OPS = ["pick", "map", "filter", "sort", "limit", "group", "agg", "yoy", "change"] as const;
 
 /** 한 단계 변환. 배열에 대해서만 동작하고 모르는 입력은 그대로 돌려준다 */
 export function runTransform(value: unknown, step: unknown): unknown {
@@ -296,10 +300,34 @@ export function runTransform(value: unknown, step: unknown): unknown {
     }
     case "limit":
       return Array.isArray(value) ? value.slice(0, Math.max(0, Math.min(MAX_POINTS, Number(step.n) || 0))) : value;
+    case "change": {
+      // 시계열(오래된 값 → 최신 값 순서의 숫자 목록, 또는 path로 숫자 칸을 고르는 행 목록)에서 최신 값과 back개 전 값을 비교한다.
+      // 결과는 {last, base<n>, pct<n>} 객체: back이 [1,5]면 {last, base1, pct1, base5, pct5}. 숫자가 아닌 값은 건너뛰고 비교할 값이 모자란 칸은 빠진다
+      if (!Array.isArray(value)) return value;
+      const lags = (Array.isArray(step.back) ? step.back : [step.back ?? 1]).filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 400).slice(0, 6);
+      const nums = value
+        .map((v) => {
+          const x = typeof step.path === "string" ? getPath(v, step.path) : v;
+          return typeof x === "number" || (typeof x === "string" && x.trim() !== "") ? Number(x) : Number.NaN;
+        })
+        .filter(Number.isFinite);
+      if (nums.length === 0 || lags.length === 0) return undefined;
+      const digits = Number.isInteger(step.digits) && (step.digits as number) >= 0 && (step.digits as number) <= 4 ? (step.digits as number) : 2;
+      const scale = 10 ** digits;
+      const last = nums[nums.length - 1];
+      const out: Record<string, number> = { last };
+      for (const n of lags) {
+        const base = nums[nums.length - 1 - n];
+        if (base === undefined || base === 0) continue;
+        out[`base${n}`] = base;
+        out[`pct${n}`] = Math.round((last / base - 1) * 100 * scale) / scale;
+      }
+      return out;
+    }
     case "yoy": {
       // 월 단위 자료의 전년 같은 달 대비 상승률(%): 각 행에 as(기본 'yoy') 값을 붙이고, 12개월 전 값이 없는 행은 뺀다
       if (!Array.isArray(value) || typeof step.path !== "string" || typeof step.date !== "string") return value;
-      const num = (v: unknown) => (typeof v === "string" && v.trim() === "" ? Number.NaN : Number(v));
+      const num = (v: unknown) => (typeof v === "number" || (typeof v === "string" && v.trim() !== "") ? Number(v) : Number.NaN);
       const monthOf = (row: unknown): [number, string] | null => {
         const d = getPath(row, step.date as string);
         const m = typeof d === "string" ? /^(\d{4})-(\d{2})/.exec(d) : null;
@@ -410,12 +438,13 @@ export const BLOCK_SPECS: Record<string, BlockSpec> = {
     keys: ["columns", "rows"],
     validate: (b, w, c) => {
       const cols = b.columns;
-      if (!Array.isArray(cols) || cols.length === 0 || cols.length > 12 || !cols.every((x) => isObject(x) && str(x.key, 60) && str(x.label, 60))) c.errors.push(`${w}: columns는 {key,label} 12개 이하 배열이어야 합니다`);
+      if (!Array.isArray(cols) || cols.length === 0 || cols.length > 12 || !cols.every((x) => isObject(x) && str(x.key, 60) && str(x.label, 60) && Object.keys(x).every((k) => ["key", "label", "format"].includes(k)))) c.errors.push(`${w}: columns는 {key,label,format?} 12개 이하 배열이어야 합니다`);
+      else cols.forEach((x, i) => checkFormat((x as Record<string, unknown>).format, `${w}.columns[${i}]`, c));
       if (typeof b.rows === "string") {
         if (!str(b.rows)) c.errors.push(`${w}: rows 글이 너무 깁니다`);
       } else if (!Array.isArray(b.rows) || b.rows.length > MAX_ROWS || !b.rows.every(isObject)) c.errors.push(`${w}: rows는 객체 ${MAX_ROWS}개 이하 배열이거나 {{경로}}여야 합니다`);
     },
-    promptDoc: "table — 표. {columns:[{key,label}], rows:[{키:값}] 또는 '{{경로}}'}",
+    promptDoc: "table — 표. {columns:[{key,label,format?}](열마다 표시 형식을 따로 줄 수 있음), rows:[{키:값}](값 자리에 '{{경로}}'를 쓸 수 있음) 또는 '{{경로}}'}",
     example: { type: "table", columns: [{ key: "name", label: "이름" }], rows: [{ name: "예시" }] },
   },
   line: {
@@ -549,8 +578,9 @@ function checkChart(b: Record<string, unknown>, w: string, c: Ctx) {
 function checkFormat(format: unknown, where: string, ctx: Ctx) {
   if (format === undefined) return;
   if (!isObject(format) || !FORMAT_TYPES.includes(format.type as FormatType)) return void ctx.errors.push(`${where}: format.type은 ${FORMAT_TYPES.join("·")} 중 하나입니다`);
-  if (Object.keys(format).some((k) => !["type", "digits", "unit", "currency"].includes(k))) ctx.errors.push(`${where}: format에 모르는 키가 있습니다`);
+  if (Object.keys(format).some((k) => !["type", "digits", "unit", "currency", "signed"].includes(k))) ctx.errors.push(`${where}: format에 모르는 키가 있습니다`);
   if (format.digits !== undefined && !(Number.isInteger(format.digits) && (format.digits as number) >= 0 && (format.digits as number) <= 6)) ctx.errors.push(`${where}: format.digits는 0~6입니다`);
+  if (format.signed !== undefined && typeof format.signed !== "boolean") ctx.errors.push(`${where}: format.signed는 true·false입니다`);
   if (format.unit !== undefined && !str(format.unit, 12)) ctx.errors.push(`${where}: format.unit은 12자 이하입니다`);
   if (format.currency !== undefined && !(typeof format.currency === "string" && /^[A-Z]{3}$/.test(format.currency))) ctx.errors.push(`${where}: format.currency는 KRW·USD 같은 3글자 코드입니다`);
 }

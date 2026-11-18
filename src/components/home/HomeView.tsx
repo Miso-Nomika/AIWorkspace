@@ -10,8 +10,8 @@ import { useHome } from "@/lib/home-store";
 import { HOME_MAX_ITEMS, moveItem, setItemHidden, setItemSize, shiftItem, type Size, type WidgetDef } from "@/lib/home-widget-core";
 import { newId } from "@/lib/storage";
 
-// 크기 → 넓은 화면(6칸)에서 차지하는 칸. 1 = 3분의 1, 2 = 절반, 3 = 전체 폭 (좁은 창은 크기와 관계없이 1열)
-const SPAN: Record<Size, string> = { 1: "md:col-span-2", 2: "md:col-span-3", 3: "md:col-span-6" };
+// 크기 → 넓은 화면(6칸)에서 차지하는 칸. 1 = 3분의 1, 2 = 절반, 4 = 3분의 2, 3 = 전체 폭 (좁은 창은 크기와 관계없이 1열)
+const SPAN: Record<Size, string> = { 1: "md:col-span-2", 2: "md:col-span-3", 4: "md:col-span-4", 3: "md:col-span-6" };
 
 /** 개인 홈: home.json의 위젯 목록을 카드로 보여 준다 (모두 선언형 정의로 만든 사용자 위젯, 처음에는 비어 있다). 위쪽 입력창으로 새 위젯을 만들고, 편집 모드에서 순서·크기·숨김을 바꾼다 */
 export function HomeView() {
