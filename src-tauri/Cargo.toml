@@ -1,0 +1,43 @@
+[package]
+name = "aiworkspace"
+version = "0.21.1"
+description = "AIWorkspace desktop app"
+authors = ["cudje"]
+license = ""
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "aiworkspace_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.5", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+# 음악: yt-dlp 내려받기(공식 릴리즈, SHA256 확인). TLS는 자동 업데이트 플러그인과 같은 구성(rustls + ring)을 쓴다
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+sha2 = "0.10"
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2.8"
+tauri-plugin-updater = "2.14.1"
+tauri-plugin-process = "2.4.0"
+base64 = "0.22"
+# 엑셀 보기: 셀을 하나씩 읽어 상한에서 멈춘다(xlsx·xlsm만)
+calamine = { version = "0.38", default-features = false, features = ["dates"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+notify-debouncer-mini = "0.7.0"
+# 터미널(프로젝트 선택 화면): Windows ConPTY·Linux openpty
+portable-pty = "0.9"
+russh-sftp = "3.0.1"
+tokio = { version = "1.54.1", features = ["process", "io-util", "sync", "time", "rt-multi-thread", "macros", "net"] }

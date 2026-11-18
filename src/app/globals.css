@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/* 테마: <html class="dark"> 로 전환한다 (lib/ui-prefs.ts, layout.tsx의 부팅 스크립트) */
+@custom-variant dark (&:where(.dark, .dark *));
+/* 사이드바 접힘: <html data-sidebar="collapsed"> — 첫 화면부터 깜빡임 없이 적용 */
+@custom-variant collapsed (&:where([data-sidebar="collapsed"] *));
+
+:root {
+  --background: #fafafa;
+  --surface: #ffffff;
+  --foreground: #18181b;
+  --muted: #71717a;
+  --border: #e4e4e7;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  /* 홈 그래프 계열 색 */
+  --series-inflation: #ea580c;
+  --series-rate: #4f46e5;
+  /* 코드 구문 강조 색 (코드 뷰어) */
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-function: #8250df;
+  --hl-type: #953800;
+  --hl-add-bg: #dafbe1;
+  --hl-del-bg: #ffebe9;
+  color-scheme: light;
+}
+
+:root.dark {
+  --background: #09090b;
+  --surface: #18181b;
+  --foreground: #f4f4f5;
+  --muted: #a1a1aa;
+  --border: #27272a;
+  --accent: #818cf8;
+  --accent-soft: #1e1b4b;
+  --series-inflation: #fb923c;
+  --series-rate: #818cf8;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-function: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-add-bg: #12261e;
+  --hl-del-bg: #3c1618;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "D2Coding", monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* 코드 구문 강조 (highlight.js 클래스) */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-section,
+.hljs-name {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: var(--hl-string);
+}
+.hljs-number,
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--hl-number);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_ {
+  color: var(--hl-function);
+}
+.hljs-built_in,
+.hljs-type,
+.hljs-title.class_,
+.hljs-params,
+.hljs-template-variable {
+  color: var(--hl-type);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+.hljs-addition {
+  background: var(--hl-add-bg);
+}
+.hljs-deletion {
+  background: var(--hl-del-bg);
+}
+
+/* 패널 너비 조절 중: 텍스트 선택 방지 + 커서 고정 */
+html[data-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* PDF 글자 층 (components/explorer/PdfView.tsx): 그림 위에 투명한 글자를 겹쳐 선택·복사·검색 표시를 한다.
+   pdf.js(pdf_viewer.css)의 글자 층 규칙 중 필요한 것만 옮겼다. --total-scale-factor는 쪽마다 PdfView가 정한다. */
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.pdf-text-layer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  user-select: text;
+}
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.pdf-text-layer .markedContent {
+  display: contents;
+}
+.pdf-text-layer ::selection {
+  background: rgb(0 90 255 / 0.3);
+}
+.pdf-text-layer .pdf-hit {
+  background: rgb(255 214 0 / 0.5);
+  border-radius: 2px;
+}
+.pdf-text-layer .pdf-hit-active {
+  background: rgb(255 130 0 / 0.65);
+}

@@ -1,0 +1,66 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# PDF 뷰어 워커 (scripts/copy-pdf-worker.mjs가 빌드 전에 복사)
+/public/pdf.worker.min.mjs
+/public/pdfjs/
+
+# 검사·점검 코드와 개발 PC 정리 도구: 이 PC에만 두고 저장소에는 올리지 않는다 (빌드·실행에 필요 없음)
+# 단위 테스트
+/tests/
+# 실제 앱·원격 서버 점검 스크립트와 공통 도우미, 정리 도구 (빌드에 쓰는 scripts/copy-pdf-worker.mjs·fix-export-segments.mjs는 올린다)
+/scripts/*-check.mjs
+/scripts/lib/
+/scripts/clean-build.mjs
+/scripts/click-native-confirm.ps1
+# 코드 검사 설정 (npx eslint .)
+/eslint.config.mjs
+# Rust 단위 테스트 본문 (src-tauri/src/*.rs에는 `#[cfg(test)] #[path] mod tests;` 한 줄만 남아 있고, 일반 빌드에서는 컴파일되지 않는다)
+/src-tauri/src/tests/
+
+# 작업 문서: 이 PC에만 두고 저장소에는 올리지 않는다 (앱 작업 중 자동으로 만들고 고친다)
+/TODO.md
+/기능명세서.md
+# 에이전트 지침 파일과 앱이 작업 중 만드는 부산물: 이 프로젝트를 쓰며 생기는 것은 배포하지 않는다
+/CLAUDE.md
+/AGENTS.md
+/.claude/
